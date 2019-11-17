@@ -136,7 +136,7 @@ class Experience(object):
         while self.total_trans >= self.capacity: 
             episode = self._remove_first()
         cur_episode = None
-        if self.len == 0 or self.episodes[self.len-1].is_complete():
+        if self.len == 0 or self.episodes[self.len-1].is_complete():           
             cur_episode = Episode(self.next_id)
             self.next_id += 1
             self.episodes.append(cur_episode)
@@ -170,7 +170,97 @@ class Experience(object):
             return self.episodes[self.len-1]
         return None
     
+class Agent(object):
+    '''Base Class of Agent
+    '''
+    def __init__(self, env: Env = None, 
+                       capacity = 10000):
+        # 保存一些Agent可以观测到的环境信息以及已经学到的经验
+        self.env = env # 建立对环境对象的引用
+        self.obs_space = env.observation_space if env is not None else None
+        ###output action info
+        self.action_space = env.action_space if env is not None else None
+        self.S = [i for i in range(self.obs_space.n)]
+        self.A = [i for i in range(self.action_space.n)]
+        self.experience = Experience(capacity = capacity)
+        # 有一个变量记录agent当前的state相对来说还是比较方便的。要注意对该变量的维护、更新
+        self.state = None   # 个体的当前状态
+    
+    def policy(self, A, s = None, Q = None, epsilon = None):
+        '''均一随机策略
+        '''
+        return random.sample(self.A, k=1)[0]
+    
+    def perform_policy(self, s, Q = None, epsilon = 0.05):
+        action = self.policy(self.A, s, Q, epsilon)
+        return int(action)
+    
+    def act(self, a0):
+        s0 = self.state
+        s1, r1, is_done, info = self.env.step(a0)
+        # TODO add extra code here
+        trans = Transition(s0, a0, r1, is_done, s1)
+        total_reward = self.experience.push(trans)
+        self.state = s1
+        return s1, r1, is_done, info, total_reward
 
+    def learning_method(self,lambda_ = 0.9, gamma = 0.9, alpha = 0.5, epsilon = 0.2, display = False):
+        '''这是一个没有学习能力的学习方法
+        具体针对某算法的学习方法，返回值需是一个二维元组：(一个状态序列的时间步、该状态序列的总奖励)
+        '''
+        self.state = self.env.reset()
+        s0 = self.state
+        if display:
+            self.env.render()
+        a0 = self.perform_policy(s0, epsilon)
+        time_in_episode, total_reward = 0, 0
+        is_done = False
+        while not is_done:
+            # add code here
+            s1, r1, is_done, info, total_reward = self.act(a0)
+            if display:
+                self.env.render()
+            a1 = self.perform_policy(s1, epsilon)
+            # add your extra code here
+            s0, a0 = s1, a1
+            time_in_episode += 1
+        if display:
+            print(self.experience.last_episode)
+        return time_in_episode, total_reward  
+                        
+                        
+    def learning(self, lambda_ = 0.9, epsilon = None, decaying_epsilon = True, gamma = 0.9, 
+                 alpha = 0.1, max_episode_num = 800, display = False):
+        total_time,  episode_reward, num_episode = 0,0,0
+        total_times, episode_rewards, num_episodes = [], [], []
+        for i in tqdm(range(max_episode_num)):
+            if epsilon is None:
+                epsilon = 1e-10
+            elif decaying_epsilon:
+                epsilon = 1.0 / (1 + num_episode)
+            time_in_episode, episode_reward = self.learning_method(lambda_ = lambda_, \
+                  gamma = gamma, alpha = alpha, epsilon = epsilon, display = display)
+            total_time += time_in_episode
+            num_episode += 1
+            total_times.append(total_time)
+            episode_rewards.append(episode_reward)
+            num_episodes.append(num_episode)
+        #self.experience.last_episode.print_detail()
+        return  total_times, episode_rewards, num_episodes
+
+    def sample(self, batch_size = 64):
+        '''随机取样
+        '''
+        return self.experience.sample(batch_size)
+
+    @property
+    def total_trans(self):
+        '''得到Experience里记录的总的状态转换数量
+        '''
+        return self.experience.total_trans
+    
+    def last_episode_detail(self):
+        self.experience.last_episode.print_detail()
 
 
 if __name__=="__main__":
