@@ -14,7 +14,7 @@ max_distance = 4.1      #无人机间最大允许距离
 ground_truth = [[0., 0.]]
 INF = 10000
 
-for i in range(30):
+for i in range(20):
     temp = [ground_truth[-1][0] + random.uniform(-1, 2), ground_truth[-1][1] + random.uniform(-1, 2)]
     ground_truth.append(list(temp))
 # hex
@@ -46,9 +46,9 @@ for i in range(30):
 
 
 ground_truth = np.array(ground_truth)
-if False:
-    ground_truth = np.load('./problem.npy')
-
+# if True:
+#     ground_truth = np.load('./problem.npy')
+#     ground_truth = ground_truth[:]
 distance_matrix = np.zeros(shape=[ground_truth.shape[0], ground_truth.shape[0]], dtype=float)
 for i in range(distance_matrix.shape[0]):
     for j in range(i):
@@ -56,9 +56,10 @@ for i in range(distance_matrix.shape[0]):
             distance_matrix[i][j] = 0
         else:
             distance_matrix[i][j] = math.sqrt((ground_truth[i][0] - ground_truth[j][0]) ** 2 + (
-                        ground_truth[i][1] - ground_truth[j][1]) ** 2 )
-            distance_matrix[j][i] = math.sqrt((ground_truth[i][0] - ground_truth[j][0]) ** 2 + (
-                        ground_truth[i][1] - ground_truth[j][1]) ** 2 )
+                        ground_truth[i][1] - ground_truth[j][1]) ** 2 )+random.uniform(-0.1,0.1)
+            # distance_matrix[j][i] = math.sqrt((ground_truth[i][0] - ground_truth[j][0]) ** 2 + (
+            #             ground_truth[i][1] - ground_truth[j][1]) ** 2 )+random.uniform(-0.1,0.1)
+            distance_matrix[j][i] = distance_matrix[i][j]
 
 
 
@@ -100,19 +101,24 @@ def getPositions(center, cluster, distMatarix,oneHopNeighbor):
             coord_neighbor_position =  vertex_coord[ele]
             if len(coord_neighbor_position) >= 3:
                 #use triposition
-                pos_0 = coord_neighbor_position[0]
-                pos_1 = coord_neighbor_position[1]
-                pos_2 = coord_neighbor_position[2]
-                position[ele] = ttb.triposition(position[pos_0][0], position[pos_0][1],
-                                            (distMatarix[pos_0][ele] + distMatarix[ele][pos_0]) / 2,
-                                            position[pos_1][0], position[pos_1][1],
-                                            (distMatarix[pos_1][ele] + distMatarix[ele][pos_1]) / 2,
-                                            position[pos_2][0], position[pos_2][1],
-                                            (distMatarix[pos_2][ele] + distMatarix[ele][pos_2]) / 2)
+                # pos_0 = coord_neighbor_position[0]
+                # pos_1 = coord_neighbor_position[1]
+                # pos_2 = coord_neighbor_position[2]
+                # position[ele] = ttb.triposition(position[pos_0][0], position[pos_0][1],
+                #                             (distMatarix[pos_0][ele] + distMatarix[ele][pos_0]) / 2,
+                #                             position[pos_1][0], position[pos_1][1],
+                #                             (distMatarix[pos_1][ele] + distMatarix[ele][pos_1]) / 2,
+                #                             position[pos_2][0], position[pos_2][1],
+                #                             (distMatarix[pos_2][ele] + distMatarix[ele][pos_2]) / 2)
+                triples=[]
+                for coord_neighbor in coord_neighbor_position:
+                    triples.append([position[coord_neighbor][0],position[coord_neighbor][1]
+                                       ,(distMatarix[coord_neighbor][ele]+distMatarix[ele][coord_neighbor])/2])
+                position[ele] = ttb.nonLinearLeastSquareMultiPosition(np.asarray(triples))
                 position_queue.append(ele)
             else:
                 # 2 degree vertexes
-                # use conditional exclusion
+                # use conditional exclusiondistance_matrix
                 # use cache to get remove duplicate situation
                 pos_0 = coord_neighbor_position[0]
                 pos_1 = coord_neighbor_position[1]
@@ -265,13 +271,8 @@ def getPositionsV2(center, cluster, distMatarix,oneHopNeighbor):
                     if (pos_temp_2[0]-choose_ele_pos[0])**2 + (pos_temp_2[1]-choose_ele_pos[1])**2<= max_range_length**2:
                         position[k] = pos_temp_1
                         possible_list.append((k,pos_temp_1))
-
         else:
             pass
-
-
-
-
         idx = idx + 1
     return position
 
@@ -289,7 +290,6 @@ def reEstabilish(distMatarix):
     ans_cluster = None
     final_ans = None
     final_score = 1000
-    np.save('./problem.npy', ground_truth)
     for k,cluster in clusters.items():
         if len(cluster) >=2:
             start =time.time()
@@ -338,7 +338,10 @@ def reEstabilish(distMatarix):
                     else:
                         final_ans = ans
                         final_ans = final_ans + temp_np_center
-                        ttb.showAns(final_ans, ground_truth, isSave=True, name=str(k))
+                        ttb.showAns(final_ans, ground_truth, isSave=True, name=str(k)+'error1')
+                        final_ans = ans2
+                        final_ans = final_ans + temp_np_center
+                        ttb.showAns(final_ans, ground_truth, isSave=True, name=str(k) + 'error2')
         else:
             pass
     return final_ans,ans_cluster,final_score
